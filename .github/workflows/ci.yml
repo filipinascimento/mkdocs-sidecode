@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Run frontend tests
+        run: npm test
+
+      - name: Build frontend assets
+        run: npm run build
+
+      - name: Install Python dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -e .[dev] build mkdocs
+
+      - name: Run Python tests
+        run: PYTHONPATH=src pytest
+
+      - name: Build demo docs
+        run: mkdocs build -f demo/mkdocs.yml
+
+      - name: Build Python distributions
+        run: python -m build
