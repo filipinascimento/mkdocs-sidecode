@@ -14,6 +14,9 @@ FENCE_PATTERN = re.compile(
     re.MULTILINE | re.DOTALL,
 )
 DIRECTIVE_PATTERN = re.compile(r"^//\s*@(?P<directive>[A-Z]+)(?:\s+(?P<rest>.+))?$")
+CSS_SIZE_PATTERN = re.compile(
+    r"^(?:\d+(?:\.\d+)?(?:px|rem|em|vh|vw|vmin|vmax|%|ch)|auto|fit-content|min-content|max-content)$"
+)
 
 
 class ExampleParseError(ValueError):
@@ -210,7 +213,10 @@ def render_example_html(example: ResolvedExample) -> str:
     attrs = example.attrs
     render_enabled = attrs.get("render", True) is not False
     console_enabled = attrs.get("console", False) is True
+    autorun_enabled = attrs.get("autorun", True) is not False
     layout = attrs.get("layout", "split")
+    width = _css_size(attrs.get("width"))
+    height = _css_size(attrs.get("height"))
     title_html = (
         f'<div class="sidecode__title">{html.escape(example.title)}</div>'
         if example.title
@@ -222,7 +228,10 @@ def render_example_html(example: ResolvedExample) -> str:
         "title": example.title,
         "render": render_enabled,
         "console": console_enabled,
+        "autorun": autorun_enabled,
         "layout": layout,
+        "width": width,
+        "height": height,
         "headerName": example.header_name,
         "headerCode": example.header_code,
         "bodyName": example.body_name,
@@ -232,6 +241,7 @@ def render_example_html(example: ResolvedExample) -> str:
     }
 
     data = html.escape(json.dumps(payload))
+    style = _style_attr(width, height)
     panels = []
     if render_enabled:
         panels.append('<div class="sidecode__render" data-role="render"></div>')
@@ -243,7 +253,7 @@ def render_example_html(example: ResolvedExample) -> str:
     console_tab_disabled = "" if console_enabled else " disabled"
 
     return f"""
-<div class="sidecode" data-sidecode-example="{html.escape(example.example_id)}" data-config="{data}">
+<div class="sidecode" data-sidecode-example="{html.escape(example.example_id)}" data-config="{data}"{style}>
   {title_html}
   <div class="sidecode__grid sidecode__grid--{html.escape(str(layout))}">
     <section class="sidecode__pane sidecode__pane--code">
@@ -273,6 +283,28 @@ def render_example_html(example: ResolvedExample) -> str:
   </div>
 </div>
 """.strip()
+
+
+def _css_size(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip()
+    if normalized.isdigit():
+        normalized = f"{normalized}px"
+    if CSS_SIZE_PATTERN.match(normalized):
+        return normalized
+    raise ExampleParseError(f"Invalid CSS size value '{value}'.")
+
+
+def _style_attr(width: str | None, height: str | None) -> str:
+    declarations: list[str] = []
+    if width:
+        declarations.append(f"--sidecode-width: {width}")
+    if height:
+        declarations.append(f"--sidecode-height: {height}")
+    if not declarations:
+        return ""
+    return f' style="{html.escape("; ".join(declarations))}"'
 
 
 def transform_markdown(markdown: str, page_key: str) -> tuple[str, list[ResolvedExample]]:

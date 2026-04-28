@@ -139,7 +139,81 @@ describe('runtime', () => {
       selection: EditorSelection.cursor("container.dataset.value = 'B';".length),
     });
 
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => setTimeout(resolve, 450));
     expect(dependentRoot.querySelector('[data-role="console"]').textContent).toContain('B');
+  });
+
+  it('does not run automatically when autorun is disabled', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const examples = [
+      {
+        id: 'page--example-1',
+        title: null,
+        render: false,
+        console: true,
+        autorun: false,
+        layout: 'split',
+        headerName: null,
+        headerCode: '',
+        bodyName: 'manual_body',
+        bodyCode: "console.log('manual run');",
+        headerRefs: [],
+        bodyRefs: [],
+      },
+    ];
+
+    pageDataScript(examples);
+    const root = exampleRoot('page--example-1');
+    root.querySelector('[data-role="render"]').remove();
+    bootstrapSidecodeExamples(document);
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(root.querySelector('[data-role="console"]').classList.contains('is-hidden')).toBe(false);
+    expect(root.querySelector('[data-role="console"]').textContent).not.toContain('manual run');
+
+    root.querySelector('[data-role="run"]').click();
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(root.querySelector('[data-role="console"]').textContent).toContain('manual run');
+  });
+
+  it('skips debounced autorun while edited code is syntactically invalid', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const examples = [
+      {
+        id: 'page--example-1',
+        title: null,
+        render: true,
+        console: true,
+        autorun: true,
+        layout: 'split',
+        headerName: null,
+        headerCode: '',
+        bodyName: 'editable_body',
+        bodyCode: "console.log('valid');",
+        headerRefs: [],
+        bodyRefs: [],
+      },
+    ];
+
+    pageDataScript(examples);
+    const root = exampleRoot('page--example-1');
+    bootstrapSidecodeExamples(document);
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const controller = root.__sidecodeController;
+    root.querySelector('[data-role="console"]').replaceChildren();
+
+    controller.editor.dispatch({
+      changes: {
+        from: 0,
+        to: controller.editor.state.doc.length,
+        insert: 'if (',
+      },
+      selection: EditorSelection.cursor('if ('.length),
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(root.querySelector('[data-role="console"]').textContent).toBe('');
   });
 });

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import pytest
+import html as html_lib
+import json
 
 from mkdocs_sidecode.parser import (
     ExampleParseError,
@@ -13,8 +15,13 @@ from mkdocs_sidecode.parser import (
 
 
 def test_parse_info_string_detects_marker_on_javascript_fence():
-    attrs = parse_info_string('javascript sidecode title="Basic Example" console=true')
-    assert attrs == {"title": "Basic Example", "console": True}
+    attrs = parse_info_string('javascript sidecode title="Basic Example" console=true height=420 autorun=false')
+    assert attrs == {
+        "title": "Basic Example",
+        "console": True,
+        "height": "420",
+        "autorun": False,
+    }
 
 
 def test_parse_info_string_supports_braced_marker():
@@ -97,3 +104,33 @@ console.log('interactive');
     html = render_example_html(examples[0])
     assert 'data-role="console"' in html
     assert "Console Example" in html
+
+
+def test_render_example_html_supports_untitled_sized_console_only_examples():
+    markdown = """
+```javascript sidecode console=true render=false width=720 height="30rem" autorun=false
+//@BODY demo
+console.log('interactive');
+```
+"""
+    _, examples = transform_markdown(markdown, "docs--console-only-md")
+    html = render_example_html(examples[0])
+    assert "sidecode__title" not in html
+    assert 'data-role="console"' in html
+    assert 'data-role="render"></div>' not in html
+    assert "--sidecode-width: 720px" in html
+    assert "--sidecode-height: 30rem" in html
+    payload_text = html.split('data-config="', 1)[1].split('"', 1)[0]
+    payload = json.loads(html_lib.unescape(payload_text))
+    assert payload["autorun"] is False
+
+
+def test_render_example_html_rejects_invalid_css_size():
+    markdown = """
+```javascript sidecode height="url(javascript:bad)"
+//@BODY demo
+console.log('interactive');
+```
+"""
+    with pytest.raises(ExampleParseError, match="Invalid CSS size value"):
+        transform_markdown(markdown, "docs--bad-size-md")

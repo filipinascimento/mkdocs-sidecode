@@ -7,7 +7,7 @@ from pathlib import Path
 from mkdocs.plugins import BasePlugin
 
 from .models import ResolvedExample
-from .parser import transform_markdown
+from .parser import _css_size, transform_markdown
 
 
 class SidecodePlugin(BasePlugin):
@@ -42,7 +42,10 @@ class SidecodePlugin(BasePlugin):
                     "title": example.title,
                     "render": example.attrs.get("render", True) is not False,
                     "console": example.attrs.get("console", False) is True,
+                    "autorun": example.attrs.get("autorun", True) is not False,
                     "layout": example.attrs.get("layout", "split"),
+                    "width": _css_size(example.attrs.get("width")),
+                    "height": _css_size(example.attrs.get("height")),
                     "headerName": example.header_name,
                     "headerCode": example.header_code,
                     "bodyName": example.body_name,

@@ -32,6 +32,31 @@ function debounce(fn, delay) {
   };
 }
 
+function canCompileForAutorun(example, registry, bodyCode) {
+  const headerSegments = [
+    ...example.headerRefs.map((ref) => ref.code),
+    example.headerCode,
+  ].filter(Boolean);
+  const executableHeader = [];
+  for (const segment of headerSegments) {
+    const split = splitImports(segment);
+    if (split.body) {
+      executableHeader.push(split.body);
+    }
+  }
+  const referencedBody = example.bodyRefs
+    .map((ref) => registry.getBody(ref.name))
+    .filter(Boolean)
+    .join('\n\n');
+  try {
+    // This intentionally excludes ESM imports, which cannot be parsed by Function.
+    new AsyncFunction([executableHeader.join('\n\n'), referencedBody, bodyCode].filter(Boolean).join('\n\n'));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 class FragmentRegistry {
   constructor(examples) {
     this.examples = new Map();
@@ -262,6 +287,7 @@ function mountExample(example, registry) {
   const renderTab = root.querySelector('[data-role="render-tab"]');
   const consoleTab = root.querySelector('[data-role="console-tab"]');
   const runButton = root.querySelector('[data-role="run"]');
+  const visibleRenderTarget = renderTarget;
   if (!renderTarget) {
     renderTarget = document.createElement('div');
     renderTarget.hidden = true;
@@ -279,7 +305,13 @@ function mountExample(example, registry) {
   const runNow = async () => {
     await executeExample(example, registry, elements, state);
   };
-  const run = debounce(runNow, 250);
+  const autorun = example.autorun !== false;
+  const runIfValid = () => {
+    if (canCompileForAutorun(example, registry, state.currentBody)) {
+      runNow();
+    }
+  };
+  const run = debounce(runIfValid, 300);
 
   const runKeymap = keymap.of([
     {
@@ -307,10 +339,12 @@ function mountExample(example, registry) {
           const dependents = registry.updateBody(example.bodyName, state.currentBody);
           for (const dependentId of dependents) {
             const dependentRoot = document.querySelector(`[data-sidecode-example="${dependentId}"]`);
-            dependentRoot?.dispatchEvent(new CustomEvent('sidecode:rerun'));
+            dependentRoot?.dispatchEvent(new CustomEvent('sidecode:source-changed'));
           }
         }
-        run();
+        if (autorun) {
+          run();
+        }
       }),
     ],
   });
@@ -340,7 +374,7 @@ function mountExample(example, registry) {
     headerEditorRoot,
     renderTab,
     consoleTab,
-    renderTarget,
+    renderTarget: visibleRenderTarget,
     consoleTarget,
   });
 
@@ -357,8 +391,15 @@ function mountExample(example, registry) {
   root.addEventListener('sidecode:rerun', () => {
     runNow();
   });
+  root.addEventListener('sidecode:source-changed', () => {
+    if (autorun) {
+      run();
+    }
+  });
 
-  runNow();
+  if (autorun) {
+    runNow();
+  }
 
   window.addEventListener('beforeunload', () => {
     editor.destroy();
@@ -415,6 +456,7 @@ function setupTabs({
   });
 
   if (!renderTarget && consoleTarget) {
+    renderTab?.classList.remove('is-active');
     consoleTab?.classList.add('is-active');
     consoleTarget.classList.remove('is-hidden');
   } else if (consoleTarget) {

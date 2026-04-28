@@ -5,7 +5,7 @@
 The fence intentionally stays `javascript` so ordinary Markdown editors still highlight the source as JavaScript:
 
 ````markdown
-```javascript sidecode title="Counter Example" console=true
+```javascript sidecode title="Counter Example" console=true height=420
 //@HEADER counter_setup
 container.innerHTML = '<button type="button">Count: 0</button>';
 const button = container.querySelector('button');
@@ -29,7 +29,18 @@ The plugin does not introduce a custom fence language such as `sidecode`. Instea
 Supported forms:
 
 - ```` ```javascript sidecode title="Basic Example" ````
+- ```` ```javascript sidecode ````
 - ```` ```javascript {sidecode} title="Basic Example" ````
+
+Fence options:
+
+- `title="..."`: optional heading. Omit it for an untitled example.
+- `console=true`: add a console panel and capture `console.log`, `console.info`, `console.warn`, and `console.error`.
+- `render=false console=true`: show only the console panel. A hidden runtime container is still created so examples can safely use `container`.
+- `width=720` or `width="42rem"`: set the example width. Bare numbers are treated as pixels.
+- `height=420` or `height="32rem"`: set the editor/output height. Bare numbers are treated as pixels.
+- `autorun=false`: disable initial and debounced edit-time execution. The Run button and `Cmd/Ctrl+Enter` still execute the example.
+- `autorun=true`: default behavior. Edits rerun with a short debounce, and incomplete JavaScript is skipped until it parses.
 
 ## Authoring Syntax
 
@@ -120,9 +131,11 @@ Build the package artifacts:
 python -m build
 ```
 
-MkDocs Material compatibility:
+MkDocs Material compatibility and theming:
 
 `mkdocs-sidecode` uses standard MkDocs plugin hooks plus `extra_css` and `extra_javascript` asset registration, so it works with the built-in MkDocs theme and Material for MkDocs. Material's instant navigation is supported by listening for its `document$` page-change event when it is present.
+
+The stylesheet follows Material's `data-md-color-scheme` attribute for light/dark palettes and falls back to `prefers-color-scheme` outside Material. The editor uses the same CSS variables as the surrounding sidecode frame, so it tracks the active docs theme rather than forcing a fixed light UI.
 
 ## MkDocs Integration
 
@@ -149,7 +162,7 @@ Recommended release flow:
    python -m build
    ```
 2. Commit and push `main`.
-3. Create a Git tag such as `v0.1.1` and push it.
+3. Create a Git tag such as `v0.1.2` and push it.
 4. Let GitHub Actions publish the built package to PyPI through trusted publishing.
 
 Initial GitHub setup:
