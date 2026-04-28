@@ -27,13 +27,13 @@ def test_parse_example_block_extracts_sections_and_refs():
         'javascript sidecode title="Reference Example"',
         "\n".join(
             [
-                "#%REF HEADER base_setup",
-                "#%REF BODY setup_body",
+                "//@REF HEADER base_setup",
+                "//@REF BODY setup_body",
                 "",
-                "#%HEADER local_setup",
+                "//@HEADER local_setup",
                 "const ready = true;",
                 "",
-                "#%BODY followup",
+                "//@BODY followup",
                 "console.log(ready);",
             ]
         ),
@@ -52,7 +52,7 @@ def test_parse_example_block_extracts_sections_and_refs():
 def test_resolve_examples_rejects_missing_fragment():
     first = parse_example_block(
         "javascript sidecode",
-        "#%REF BODY missing\n#%BODY body_one\nconsole.log('x');",
+        "//@REF BODY missing\n//@BODY body_one\nconsole.log('x');",
         "example-1",
     )
     with pytest.raises(ExampleParseError, match="missing BODY fragment 'missing'"):
@@ -62,7 +62,7 @@ def test_resolve_examples_rejects_missing_fragment():
 def test_resolve_examples_rejects_self_reference_cycle():
     block = parse_example_block(
         "javascript sidecode",
-        "#%REF BODY body_one\n#%BODY body_one\nconsole.log('x');",
+        "//@REF BODY body_one\n//@BODY body_one\nconsole.log('x');",
         "example-1",
     )
     with pytest.raises(ExampleParseError, match="circular self-reference"):
@@ -76,7 +76,7 @@ console.log('plain');
 ```
 
 ```javascript sidecode title="Basic Example" console=true
-#%BODY demo
+//@BODY demo
 console.log('interactive');
 ```
 """
@@ -89,7 +89,7 @@ console.log('interactive');
 def test_render_example_html_includes_console_panel_when_enabled():
     markdown = """
 ```javascript sidecode title="Console Example" console=true
-#%BODY demo
+//@BODY demo
 console.log('interactive');
 ```
 """

@@ -6,7 +6,7 @@ The fence intentionally stays `javascript` so ordinary Markdown editors still hi
 
 ````markdown
 ```javascript sidecode title="Counter Example" console=true
-#%HEADER counter_setup
+//@HEADER counter_setup
 container.innerHTML = '<button type="button">Count: 0</button>';
 const button = container.querySelector('button');
 let count = 0;
@@ -16,7 +16,7 @@ function setCount(value) {
   button.textContent = `Count: ${count}`;
 }
 
-#%BODY counter_body
+//@BODY counter_body
 setCount(3);
 console.log('counter initialized');
 ```
@@ -35,19 +35,19 @@ Supported forms:
 
 Supported directives inside the fence:
 
-- `#%HEADER <name>`: hidden setup code that runs before the editable body.
-- `#%BODY <name>`: visible editable code shown in the editor.
-- `#%REF HEADER <name>`: include a previously defined named header fragment on the same page.
-- `#%REF BODY <name>`: include a previously defined named body fragment on the same page.
+- `//@HEADER <name>`: hidden setup code that runs before the editable body.
+- `//@BODY <name>`: visible editable code shown in the editor.
+- `//@REF HEADER <name>`: include a previously defined named header fragment on the same page.
+- `//@REF BODY <name>`: include a previously defined named body fragment on the same page.
 
 Example with references:
 
 ````markdown
 ```javascript sidecode title="Counter Follow-up" console=true
-#%REF HEADER counter_setup
-#%REF BODY counter_body
+//@REF HEADER counter_setup
+//@REF BODY counter_body
 
-#%BODY counter_followup
+//@BODY counter_followup
 button.style.fontWeight = '700';
 console.log(`current count: ${count}`);
 ```
@@ -149,7 +149,7 @@ Recommended release flow:
    python -m build
    ```
 2. Commit and push `main`.
-3. Create a Git tag such as `v0.1.0` and push it.
+3. Create a Git tag such as `v0.1.1` and push it.
 4. Let GitHub Actions publish the built package to PyPI through trusted publishing.
 
 Initial GitHub setup:

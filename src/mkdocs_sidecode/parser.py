@@ -13,7 +13,7 @@ FENCE_PATTERN = re.compile(
     r"(?P<indent>^[ \t]*)```(?P<info>[^\n]*)\n(?P<code>.*?)\n(?P=indent)```",
     re.MULTILINE | re.DOTALL,
 )
-DIRECTIVE_PATTERN = re.compile(r"^#%(?P<directive>[A-Z]+)(?:\s+(?P<rest>.+))?$")
+DIRECTIVE_PATTERN = re.compile(r"^//\s*@(?P<directive>[A-Z]+)(?:\s+(?P<rest>.+))?$")
 
 
 class ExampleParseError(ValueError):
@@ -75,7 +75,7 @@ def parse_example_block(info_string: str, source: str, example_id: str) -> Examp
             if directive in {"HEADER", "BODY"}:
                 if not rest:
                     raise ExampleParseError(
-                        f"Line {line_number}: #%{directive} must include a fragment name."
+                        f"Line {line_number}: //@{directive} must include a fragment name."
                     )
                 current_section = directive
                 if directive == "HEADER":
@@ -91,7 +91,7 @@ def parse_example_block(info_string: str, source: str, example_id: str) -> Examp
                 ref_parts = rest.split(None, 1)
                 if len(ref_parts) != 2:
                     raise ExampleParseError(
-                        f"Line {line_number}: REF directives must be '#%REF HEADER <name>' or '#%REF BODY <name>'."
+                        f"Line {line_number}: REF directives must be '//@REF HEADER <name>' or '//@REF BODY <name>'."
                     )
                 fragment_type, name = ref_parts
                 fragment_type = fragment_type.upper()
@@ -101,7 +101,7 @@ def parse_example_block(info_string: str, source: str, example_id: str) -> Examp
                     )
                 refs.append(FragmentReference(fragment_type.lower(), name))
                 continue
-            raise ExampleParseError(f"Line {line_number}: Unsupported directive '#%{directive}'.")
+            raise ExampleParseError(f"Line {line_number}: Unsupported directive '//@{directive}'.")
 
         if current_section == "HEADER":
             header_lines.append(raw_line)

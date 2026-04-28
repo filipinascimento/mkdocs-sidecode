@@ -13,7 +13,7 @@ def test_plugin_injects_runtime_when_examples_exist():
     )
     markdown = """
 ```javascript sidecode title="Basic Example" console=true
-#%BODY demo
+//@BODY demo
 console.log('interactive');
 ```
 """
