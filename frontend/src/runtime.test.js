@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorSelection } from '@codemirror/state';
-import { bootstrapHeliosExamples, resetModuleLoader, setModuleLoader } from './runtime.js';
+import { bootstrapSidecodeExamples, resetModuleLoader, setModuleLoader } from './runtime.js';
 
 function pageDataScript(examples) {
   const script = document.createElement('script');
@@ -12,10 +12,16 @@ function pageDataScript(examples) {
 
 function exampleRoot(id) {
   const root = document.createElement('div');
-  root.className = 'helios-example';
-  root.dataset.heliosExample = id;
+  root.className = 'sidecode';
+  root.dataset.sidecodeExample = id;
   root.innerHTML = `
-    <div data-role="editor"></div>
+    <div data-role="body-editor"></div>
+    <div data-role="header-editor"></div>
+    <button data-role="body-tab"></button>
+    <button data-role="header-tab"></button>
+    <button data-role="render-tab"></button>
+    <button data-role="console-tab"></button>
+    <button data-role="run"></button>
     <div data-role="output">
       <div data-role="render"></div>
       <pre data-role="console"></pre>
@@ -70,7 +76,7 @@ describe('runtime', () => {
 
     pageDataScript(examples);
     const root = exampleRoot('page--example-1');
-    bootstrapHeliosExamples(document);
+    bootstrapSidecodeExamples(document);
 
     await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -118,12 +124,12 @@ describe('runtime', () => {
     pageDataScript(examples);
     const sourceRoot = exampleRoot('page--example-1');
     const dependentRoot = exampleRoot('page--example-2');
-    bootstrapHeliosExamples(document);
+    bootstrapSidecodeExamples(document);
 
     await new Promise((resolve) => setTimeout(resolve, 200));
     expect(dependentRoot.querySelector('[data-role="console"]').textContent).toContain('A');
 
-    const sourceController = sourceRoot.__heliosExampleController;
+    const sourceController = sourceRoot.__sidecodeController;
     sourceController.editor.dispatch({
       changes: {
         from: 0,

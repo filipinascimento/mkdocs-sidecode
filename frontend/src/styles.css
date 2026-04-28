@@ -1,85 +1,183 @@
-.helios-example {
-  --helios-border: #d4d7dd;
-  --helios-surface: #f7f8fa;
-  --helios-text: #12202f;
-  --helios-accent: #0f6f65;
-  --helios-console-bg: #0f1720;
-  --helios-console-text: #dce7f3;
+.sidecode {
+  --sidecode-border: #d7dde5;
+  --sidecode-surface: #f8fafc;
+  --sidecode-panel: #ffffff;
+  --sidecode-text: #172033;
+  --sidecode-muted: #667085;
+  --sidecode-accent: #146c5c;
+  --sidecode-console-bg: #111827;
+  --sidecode-console-text: #e5edf5;
   margin: 1.5rem 0;
-  border: 1px solid var(--helios-border);
-  border-radius: 16px;
+  border: 1px solid var(--sidecode-border);
+  border-radius: 8px;
   overflow: hidden;
-  background: linear-gradient(180deg, #ffffff, var(--helios-surface));
+  background: var(--sidecode-panel);
+  color: var(--sidecode-text);
 }
 
-.helios-example__title {
-  padding: 0.9rem 1rem;
-  font-weight: 600;
-  border-bottom: 1px solid var(--helios-border);
+.sidecode__title {
+  padding: 0.75rem 0.9rem;
+  font-weight: 650;
+  border-bottom: 1px solid var(--sidecode-border);
+  background: var(--sidecode-surface);
 }
 
-.helios-example__grid {
+.sidecode__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  min-height: 360px;
+  min-height: 380px;
 }
 
-.helios-example__editor,
-.helios-example__output {
+.sidecode__pane {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidecode__pane--code {
+  border-right: 1px solid var(--sidecode-border);
+}
+
+.sidecode__toolbar {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.45rem;
+  border-bottom: 1px solid var(--sidecode-border);
+  background: #f3f6f8;
+}
+
+.sidecode__tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.sidecode__tab,
+.sidecode__icon-button {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--sidecode-muted);
+  cursor: pointer;
+  font: inherit;
+}
+
+.sidecode__tab {
+  min-height: 30px;
+  padding: 0.25rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+
+.sidecode__tab.is-active {
+  background: var(--sidecode-panel);
+  border-color: var(--sidecode-border);
+  color: var(--sidecode-text);
+}
+
+.sidecode__tab:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.sidecode__icon-button {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 6px;
+}
+
+.sidecode__icon-button:hover,
+.sidecode__icon-button:focus-visible {
+  border-color: var(--sidecode-border);
+  background: var(--sidecode-panel);
+  color: var(--sidecode-accent);
+}
+
+.sidecode__icon-button svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.sidecode__editor {
+  flex: 1 1 0;
+  min-height: 330px;
   min-width: 0;
 }
 
-.helios-example__editor {
-  border-right: 1px solid var(--helios-border);
+.sidecode__output-panels {
+  flex: 1 1 0;
+  min-height: 330px;
+  display: flex;
+  min-width: 0;
 }
 
-.helios-example__output {
-  display: grid;
-  grid-template-rows: minmax(220px, 1fr) auto;
-  background: #fbfcfd;
-}
-
-.helios-example__render {
-  min-height: 240px;
+.sidecode__render {
+  flex: 1 1 0;
+  min-height: 330px;
   padding: 1rem;
-}
-
-.helios-example__console {
-  margin: 0;
-  padding: 1rem;
-  min-height: 120px;
-  background: var(--helios-console-bg);
-  color: var(--helios-console-text);
   overflow: auto;
+  background:
+    linear-gradient(90deg, rgb(15 23 42 / 4%) 1px, transparent 1px),
+    linear-gradient(180deg, rgb(15 23 42 / 4%) 1px, transparent 1px),
+    #ffffff;
+  background-size: 24px 24px;
 }
 
-.helios-example__console-line + .helios-example__console-line {
+.sidecode__console {
+  flex: 1 1 0;
+  margin: 0;
+  padding: 0.85rem;
+  min-height: 330px;
+  background: var(--sidecode-console-bg);
+  color: var(--sidecode-console-text);
+  overflow: auto;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.sidecode__console-line + .sidecode__console-line {
   margin-top: 0.35rem;
 }
 
-.helios-example__console-line--warn {
+.sidecode__console-line--warn {
   color: #f7d269;
 }
 
-.helios-example__console-line--error {
+.sidecode__console-line--error {
   color: #f6a5a5;
 }
 
-.cm-editor {
+.sidecode .cm-editor {
   height: 100%;
+  font-size: 0.9rem;
 }
 
-.cm-scroller {
+.sidecode .cm-scroller {
   overflow: auto;
 }
 
+.sidecode .cm-gutters {
+  border-right-color: var(--sidecode-border);
+}
+
+.is-hidden {
+  display: none !important;
+}
+
 @media (max-width: 900px) {
-  .helios-example__grid {
+  .sidecode__grid {
     grid-template-columns: 1fr;
   }
 
-  .helios-example__editor {
+  .sidecode__pane--code {
     border-right: none;
-    border-bottom: 1px solid var(--helios-border);
+    border-bottom: 1px solid var(--sidecode-border);
   }
 }

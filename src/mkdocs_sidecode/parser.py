@@ -30,13 +30,13 @@ def parse_info_string(info_string: str) -> dict[str, object] | None:
         return None
 
     markers = set(parts[1:])
-    has_marker = "helios-example" in markers or "{helios-example}" in markers
+    has_marker = "sidecode" in markers or "{sidecode}" in markers
     if not has_marker:
         return None
 
     attrs: dict[str, object] = {}
     for token in parts[1:]:
-        if token in {"helios-example", "{helios-example}"}:
+        if token in {"sidecode", "{sidecode}"}:
             continue
         if "=" not in token:
             attrs[token] = True
@@ -212,7 +212,7 @@ def render_example_html(example: ResolvedExample) -> str:
     console_enabled = attrs.get("console", False) is True
     layout = attrs.get("layout", "split")
     title_html = (
-        f'<div class="helios-example__title">{html.escape(example.title)}</div>'
+        f'<div class="sidecode__title">{html.escape(example.title)}</div>'
         if example.title
         else ""
     )
@@ -234,19 +234,42 @@ def render_example_html(example: ResolvedExample) -> str:
     data = html.escape(json.dumps(payload))
     panels = []
     if render_enabled:
-        panels.append('<div class="helios-example__render" data-role="render"></div>')
+        panels.append('<div class="sidecode__render" data-role="render"></div>')
     if console_enabled:
-        panels.append('<pre class="helios-example__console" data-role="console"></pre>')
+        panels.append('<pre class="sidecode__console" data-role="console"></pre>')
     panel_html = "\n".join(panels)
+    header_disabled = "" if example.header_code or example.resolved_header_refs else " disabled"
+    render_tab_disabled = "" if render_enabled else " disabled"
+    console_tab_disabled = "" if console_enabled else " disabled"
 
     return f"""
-<div class="helios-example" data-helios-example="{html.escape(example.example_id)}" data-config="{data}">
+<div class="sidecode" data-sidecode-example="{html.escape(example.example_id)}" data-config="{data}">
   {title_html}
-  <div class="helios-example__grid helios-example__grid--{html.escape(str(layout))}">
-    <div class="helios-example__editor" data-role="editor"></div>
-    <div class="helios-example__output" data-role="output">
+  <div class="sidecode__grid sidecode__grid--{html.escape(str(layout))}">
+    <section class="sidecode__pane sidecode__pane--code">
+      <div class="sidecode__toolbar">
+        <div class="sidecode__tabs" role="tablist" aria-label="Code sections">
+          <button class="sidecode__tab is-active" type="button" data-role="body-tab">Body</button>
+          <button class="sidecode__tab" type="button" data-role="header-tab"{header_disabled}>Header</button>
+        </div>
+        <button class="sidecode__icon-button" type="button" data-role="run" aria-label="Run example" title="Run">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
+        </button>
+      </div>
+      <div class="sidecode__editor" data-role="body-editor"></div>
+      <div class="sidecode__editor is-hidden" data-role="header-editor"></div>
+    </section>
+    <section class="sidecode__pane sidecode__pane--output" data-role="output">
+      <div class="sidecode__toolbar">
+        <div class="sidecode__tabs" role="tablist" aria-label="Output panels">
+          <button class="sidecode__tab is-active" type="button" data-role="render-tab"{render_tab_disabled}>Render</button>
+          <button class="sidecode__tab" type="button" data-role="console-tab"{console_tab_disabled}>Console</button>
+        </div>
+      </div>
+      <div class="sidecode__output-panels">
       {panel_html}
-    </div>
+      </div>
+    </section>
   </div>
 </div>
 """.strip()

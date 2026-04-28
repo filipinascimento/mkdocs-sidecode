@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [
-  { name = "Helios" }
+  { name = "MkDocs Sidecode Contributors" }
 ]
 dependencies = [
   "mkdocs>=1.6",

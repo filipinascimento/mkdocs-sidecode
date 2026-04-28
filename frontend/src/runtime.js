@@ -1,5 +1,6 @@
+import { basicSetup } from 'codemirror';
 import { EditorState } from '@codemirror/state';
-import { EditorView } from '@codemirror/view';
+import { EditorView, keymap } from '@codemirror/view';
 import { javascript } from '@codemirror/lang-javascript';
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
@@ -75,7 +76,7 @@ function createScopedConsole(consoleTarget) {
   const append = (method, args) => {
     if (consoleTarget) {
       const line = document.createElement('div');
-      line.className = `helios-example__console-line helios-example__console-line--${method}`;
+      line.className = `sidecode__console-line sidecode__console-line--${method}`;
       line.textContent = args.map((value) => stringifyLog(value)).join(' ');
       consoleTarget.appendChild(line);
     }
@@ -178,9 +179,11 @@ async function executeExample(example, registry, elements, state) {
     .filter(Boolean)
     .join('\n\n');
 
+  const runId = `${example.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
   const moduleSource = [
     importChunks.join('\n'),
-    'const __ctx = globalThis.__HELIOS_EXAMPLE_CONTEXT__;',
+    `const __ctx = globalThis.__MKDOCS_SIDECODE_CONTEXTS__?.get(${JSON.stringify(runId)});`,
+    'if (!__ctx) throw new Error("Sidecode execution context is unavailable.");',
     'const { container, consoleTarget, context, registerCleanup, console } = __ctx;',
     'await (async () => {',
     executableHeaderChunks.join('\n\n'),
@@ -191,7 +194,10 @@ async function executeExample(example, registry, elements, state) {
     .filter(Boolean)
     .join('\n\n');
 
-  globalThis.__HELIOS_EXAMPLE_CONTEXT__ = {
+  if (!globalThis.__MKDOCS_SIDECODE_CONTEXTS__) {
+    globalThis.__MKDOCS_SIDECODE_CONTEXTS__ = new Map();
+  }
+  globalThis.__MKDOCS_SIDECODE_CONTEXTS__.set(runId, {
     container: elements.renderTarget,
     consoleTarget: elements.consoleTarget,
     context: {
@@ -200,14 +206,14 @@ async function executeExample(example, registry, elements, state) {
     },
     registerCleanup,
     console: scopedConsole,
-  };
+  });
 
   try {
     state.moduleUrl = await moduleLoader(moduleSource);
   } catch (error) {
     scopedConsole.error(error instanceof Error ? error.message : String(error));
   } finally {
-    delete globalThis.__HELIOS_EXAMPLE_CONTEXT__;
+    globalThis.__MKDOCS_SIDECODE_CONTEXTS__.delete(runId);
   }
 }
 
@@ -238,14 +244,24 @@ function cleanupExample(state, elements) {
 }
 
 function mountExample(example, registry) {
-  const root = document.querySelector(`[data-helios-example="${example.id}"]`);
+  const root = document.querySelector(`[data-sidecode-example="${example.id}"]`);
   if (!root) {
     return;
   }
+  if (root.dataset.sidecodeMounted === 'true') {
+    return;
+  }
+  root.dataset.sidecodeMounted = 'true';
 
-  const editorRoot = root.querySelector('[data-role="editor"]');
+  const bodyEditorRoot = root.querySelector('[data-role="body-editor"]');
+  const headerEditorRoot = root.querySelector('[data-role="header-editor"]');
   let renderTarget = root.querySelector('[data-role="render"]');
   const consoleTarget = root.querySelector('[data-role="console"]');
+  const bodyTab = root.querySelector('[data-role="body-tab"]');
+  const headerTab = root.querySelector('[data-role="header-tab"]');
+  const renderTab = root.querySelector('[data-role="render-tab"]');
+  const consoleTab = root.querySelector('[data-role="console-tab"]');
+  const runButton = root.querySelector('[data-role="run"]');
   if (!renderTarget) {
     renderTarget = document.createElement('div');
     renderTarget.hidden = true;
@@ -260,15 +276,28 @@ function mountExample(example, registry) {
     moduleUrl: null,
   };
 
-  const run = debounce(async () => {
+  const runNow = async () => {
     await executeExample(example, registry, elements, state);
-  }, 120);
+  };
+  const run = debounce(runNow, 250);
+
+  const runKeymap = keymap.of([
+    {
+      key: 'Mod-Enter',
+      run() {
+        runNow();
+        return true;
+      },
+    },
+  ]);
 
   const editorState = EditorState.create({
     doc: example.bodyCode,
     extensions: [
+      basicSetup,
       javascript(),
       EditorView.lineWrapping,
+      runKeymap,
       EditorView.updateListener.of((update) => {
         if (!update.docChanged) {
           return;
@@ -277,33 +306,123 @@ function mountExample(example, registry) {
         if (example.bodyName) {
           const dependents = registry.updateBody(example.bodyName, state.currentBody);
           for (const dependentId of dependents) {
-            const dependentRoot = document.querySelector(`[data-helios-example="${dependentId}"]`);
-            dependentRoot?.dispatchEvent(new CustomEvent('helios:rerun'));
+            const dependentRoot = document.querySelector(`[data-sidecode-example="${dependentId}"]`);
+            dependentRoot?.dispatchEvent(new CustomEvent('sidecode:rerun'));
           }
         }
         run();
       }),
     ],
   });
-  const editor = new EditorView({ state: editorState, parent: editorRoot });
-  root.__heliosExampleController = {
-    editor,
-    rerun: () => run(),
-  };
+  const editor = new EditorView({ state: editorState, parent: bodyEditorRoot });
 
-  root.addEventListener('helios:rerun', () => {
-    run();
+  const headerSource = [
+    ...example.headerRefs.map((ref) => ref.code),
+    example.headerCode,
+  ].filter(Boolean).join('\n\n');
+  const headerEditor = new EditorView({
+    state: EditorState.create({
+      doc: headerSource || '// No header code for this example.',
+      extensions: [
+        basicSetup,
+        javascript(),
+        EditorView.lineWrapping,
+        EditorState.readOnly.of(true),
+      ],
+    }),
+    parent: headerEditorRoot,
   });
 
-  run();
+  setupTabs({
+    bodyTab,
+    headerTab,
+    bodyEditorRoot,
+    headerEditorRoot,
+    renderTab,
+    consoleTab,
+    renderTarget,
+    consoleTarget,
+  });
+
+  runButton?.addEventListener('click', () => {
+    runNow();
+  });
+
+  root.__sidecodeController = {
+    editor,
+    headerEditor,
+    rerun: () => runNow(),
+  };
+
+  root.addEventListener('sidecode:rerun', () => {
+    runNow();
+  });
+
+  runNow();
 
   window.addEventListener('beforeunload', () => {
     editor.destroy();
+    headerEditor.destroy();
     cleanupExample(state, elements);
   }, { once: true });
 }
 
-export function bootstrapHeliosExamples(doc = document) {
+function setupTabs({
+  bodyTab,
+  headerTab,
+  bodyEditorRoot,
+  headerEditorRoot,
+  renderTab,
+  consoleTab,
+  renderTarget,
+  consoleTarget,
+}) {
+  bodyTab?.addEventListener('click', () => {
+    bodyTab.classList.add('is-active');
+    headerTab?.classList.remove('is-active');
+    bodyEditorRoot.classList.remove('is-hidden');
+    headerEditorRoot.classList.add('is-hidden');
+  });
+
+  headerTab?.addEventListener('click', () => {
+    if (headerTab.disabled) {
+      return;
+    }
+    headerTab.classList.add('is-active');
+    bodyTab?.classList.remove('is-active');
+    headerEditorRoot.classList.remove('is-hidden');
+    bodyEditorRoot.classList.add('is-hidden');
+  });
+
+  renderTab?.addEventListener('click', () => {
+    if (renderTab.disabled) {
+      return;
+    }
+    renderTab.classList.add('is-active');
+    consoleTab?.classList.remove('is-active');
+    renderTarget?.classList.remove('is-hidden');
+    consoleTarget?.classList.add('is-hidden');
+  });
+
+  consoleTab?.addEventListener('click', () => {
+    if (consoleTab.disabled) {
+      return;
+    }
+    consoleTab.classList.add('is-active');
+    renderTab?.classList.remove('is-active');
+    consoleTarget?.classList.remove('is-hidden');
+    renderTarget?.classList.add('is-hidden');
+  });
+
+  if (!renderTarget && consoleTarget) {
+    consoleTab?.classList.add('is-active');
+    consoleTarget.classList.remove('is-hidden');
+  } else if (consoleTarget) {
+    consoleTarget.classList.add('is-hidden');
+  }
+}
+
+export function bootstrapSidecodeExamples(doc = document) {
   const pageData = parsePageData(doc);
   if (!pageData?.examples?.length) {
     return;
@@ -333,5 +452,8 @@ export function resetModuleLoader() {
 }
 
 if (typeof window !== 'undefined') {
-  bootstrapHeliosExamples(window.document);
+  bootstrapSidecodeExamples(window.document);
+  window.document$?.subscribe(() => {
+    bootstrapSidecodeExamples(window.document);
+  });
 }

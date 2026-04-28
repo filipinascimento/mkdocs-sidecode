@@ -5,26 +5,31 @@
 The fence intentionally stays `javascript` so ordinary Markdown editors still highlight the source as JavaScript:
 
 ````markdown
-```javascript helios-example title="Selection Example" console=true
-#%HEADER base_setup
-import { Helios } from 'helios-web-next';
+```javascript sidecode title="Counter Example" console=true
+#%HEADER counter_setup
+container.innerHTML = '<button type="button">Count: 0</button>';
+const button = container.querySelector('button');
+let count = 0;
 
-const helios = new Helios(container, {});
-console.log('ready');
+function setCount(value) {
+  count = value;
+  button.textContent = `Count: ${count}`;
+}
 
-#%BODY selection_demo
-helios.behavior.selection.clear();
+#%BODY counter_body
+setCount(3);
+console.log('counter initialized');
 ```
 ````
 
 ## Why `javascript` Fences Stay Intact
 
-The plugin does not introduce a custom fence language such as `helios-example`. Instead it recognizes JavaScript fences whose info string also contains `helios-example`. That keeps normal editor highlighting intact while still giving MkDocs a reliable marker.
+The plugin does not introduce a custom fence language such as `sidecode`. Instead it recognizes JavaScript fences whose info string also contains `sidecode`. That keeps normal editor highlighting intact while still giving MkDocs a reliable marker.
 
 Supported forms:
 
-- ```` ```javascript helios-example title="Basic Example" ````
-- ```` ```javascript {helios-example} title="Basic Example" ````
+- ```` ```javascript sidecode title="Basic Example" ````
+- ```` ```javascript {sidecode} title="Basic Example" ````
 
 ## Authoring Syntax
 
@@ -38,12 +43,13 @@ Supported directives inside the fence:
 Example with references:
 
 ````markdown
-```javascript helios-example title="Selection Follow-up" console=true
-#%REF HEADER base_setup
-#%REF BODY selection_demo
+```javascript sidecode title="Counter Follow-up" console=true
+#%REF HEADER counter_setup
+#%REF BODY counter_body
 
-#%BODY selection_followup
-helios.behavior.labels.mode('selected');
+#%BODY counter_followup
+button.style.fontWeight = '700';
+console.log(`current count: ${count}`);
 ```
 ````
 
@@ -82,14 +88,14 @@ Before rerunning an example, the runtime:
 3. Clears render and console containers.
 4. Re-executes the current composed example.
 
-This gives the docs runtime a standard cleanup contract for canvases, listeners, timers, and Helios instances without forcing each author to reimplement boilerplate.
+This gives the docs runtime a standard cleanup contract for canvases, listeners, timers, and retained DOM nodes without forcing each author to reimplement boilerplate.
 
 ## Local Development
 
 Install Python and frontend dependencies:
 
 ```bash
-cd /Users/filipinascimentosilva/Downloads/helios-new/mkdocs-sidecode
+cd mkdocs-sidecode
 python -m pip install '.[dev]'
 npm install
 npm run build
@@ -113,6 +119,10 @@ Build the package artifacts:
 ```bash
 python -m build
 ```
+
+MkDocs Material compatibility:
+
+`mkdocs-sidecode` uses standard MkDocs plugin hooks plus `extra_css` and `extra_javascript` asset registration, so it works with the built-in MkDocs theme and Material for MkDocs. Material's instant navigation is supported by listening for its `document$` page-change event when it is present.
 
 ## MkDocs Integration
 
@@ -148,3 +158,13 @@ Initial GitHub setup:
 - Push the `main` branch.
 - In PyPI, create the `mkdocs-sidecode` project and configure trusted publishing for the GitHub repository.
 - After that, each pushed `v*` tag can publish automatically through `.github/workflows/publish.yml`.
+
+Deploying docs that use this plugin:
+
+```bash
+pip install mkdocs-material mkdocs-sidecode
+mkdocs build
+mkdocs gh-deploy
+```
+
+For GitHub Pages through Actions, install `mkdocs-sidecode` in the docs workflow before running `mkdocs build`.

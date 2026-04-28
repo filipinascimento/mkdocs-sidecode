@@ -1,17 +1,17 @@
 # Referenced Fragments
 
-```javascript helios-example title="Setup Source"
+```javascript sidecode title="Setup Source"
 #%HEADER render_setup
-container.innerHTML = '<div>Shared setup</div>';
+container.innerHTML = '<div class="demo-message">Shared setup</div>';
 
 #%BODY visible_body
-console.log('source body');
+container.querySelector('.demo-message').textContent = 'Source body ran';
 ```
 
-```javascript helios-example title="Dependent Example" console=true
+```javascript sidecode title="Dependent Example" console=true
 #%REF HEADER render_setup
 #%REF BODY visible_body
 
 #%BODY dependent_body
-console.log('dependent body');
+console.log(container.textContent);
 ```

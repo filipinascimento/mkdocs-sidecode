@@ -15,6 +15,15 @@ class SidecodePlugin(BasePlugin):
         self._page_examples: dict[str, list[ResolvedExample]] = {}
         self._assets_src = Path(__file__).parent / "assets"
 
+    def on_config(self, config):  # noqa: ANN001
+        config.setdefault("extra_css", [])
+        config.setdefault("extra_javascript", [])
+        if "assets/mkdocs-sidecode/styles.css" not in config["extra_css"]:
+            config["extra_css"].append("assets/mkdocs-sidecode/styles.css")
+        if "assets/mkdocs-sidecode/runtime.js" not in config["extra_javascript"]:
+            config["extra_javascript"].append("assets/mkdocs-sidecode/runtime.js")
+        return config
+
     def on_page_markdown(self, markdown: str, page, config, files):  # noqa: ANN001
         page_key = page.file.src_uri.replace("/", "--")
         transformed, examples = transform_markdown(markdown, page_key)
@@ -25,7 +34,6 @@ class SidecodePlugin(BasePlugin):
         examples = self._page_examples.get(page.file.src_path, [])
         if not examples:
             return html
-        asset_prefix = self._asset_prefix_for_page(page)
 
         payload = {
             "examples": [
@@ -63,10 +71,8 @@ class SidecodePlugin(BasePlugin):
         }
 
         runtime = """
-<link rel="stylesheet" href="{asset_prefix}assets/mkdocs-sidecode/styles.css">
 <script type="application/json" class="mkdocs-sidecode-page-data">{payload}</script>
-<script type="module" src="{asset_prefix}assets/mkdocs-sidecode/runtime.js"></script>
-""".strip().format(payload=json.dumps(payload), asset_prefix=asset_prefix)
+""".strip().format(payload=json.dumps(payload))
         return f"{html}\n{runtime}"
 
     def on_post_build(self, config):  # noqa: ANN001
@@ -78,14 +84,3 @@ class SidecodePlugin(BasePlugin):
         target.mkdir(parents=True, exist_ok=True)
         for asset in self._assets_src.iterdir():
             shutil.copy2(asset, target / asset.name)
-
-    def _asset_prefix_for_page(self, page) -> str:  # noqa: ANN001
-        url = (getattr(page, "url", None) or "").strip("/")
-        if not url or url == "index.html":
-            return ""
-        clean_url = url[:-10] if url.endswith("/index.html") else url
-        clean_url = clean_url.strip("/")
-        if not clean_url:
-            return ""
-        depth = len([part for part in clean_url.split("/") if part])
-        return "../" * depth
