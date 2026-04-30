@@ -1,13 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorSelection } from '@codemirror/state';
-import { bootstrapSidecodeExamples, resetModuleLoader, setModuleLoader } from './runtime.js';
+import {
+  bootstrapSidecodeExamples,
+  resetModuleLoader,
+  rewriteImportSpecifiers,
+  setModuleLoader,
+} from './runtime.js';
 
-function pageDataScript(examples) {
-  const script = document.createElement('script');
-  script.type = 'application/json';
-  script.className = 'mkdocs-sidecode-page-data';
-  script.textContent = JSON.stringify({ examples });
-  document.body.appendChild(script);
+function pageDataScript(examples, importMap = undefined) {
+  const template = document.createElement('template');
+  template.className = 'mkdocs-sidecode-page-data';
+  template.textContent = JSON.stringify({ examples, importMap });
+  document.body.appendChild(template);
 }
 
 function exampleRoot(id) {
@@ -82,6 +86,63 @@ describe('runtime', () => {
 
     expect(root.querySelector('[data-role="render"]').textContent).toContain('ready');
     expect(root.querySelector('[data-role="console"]').textContent).toContain('hello runtime');
+  });
+
+  it('rewrites configured package imports before executing body code', async () => {
+    let moduleSource = '';
+    setModuleLoader(async (source) => {
+      moduleSource = source;
+      return null;
+    });
+    const examples = [
+      {
+        id: 'page--example-1',
+        title: 'Imports',
+        render: true,
+        console: true,
+        layout: 'split',
+        headerName: null,
+        headerCode: '',
+        bodyName: 'demo',
+        bodyCode: 'import { Helios } from "helios-web";\nconsole.log(Helios);',
+        headerRefs: [],
+        bodyRefs: [],
+      },
+    ];
+
+    pageDataScript(examples, { 'helios-web': '../vendor/helios/helios-web.es.js' });
+    exampleRoot('page--example-1');
+    const runtime = document.createElement('script');
+    runtime.src = 'http://docs.test/assets/mkdocs-sidecode/runtime.js';
+    document.head.appendChild(runtime);
+    bootstrapSidecodeExamples(document);
+
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(moduleSource).toContain('from "http://docs.test/assets/vendor/helios/helios-web.es.js"');
+    expect(moduleSource).toContain('console.log(Helios);');
+  });
+
+  it('rewrites static and dynamic import specifiers', () => {
+    const source = [
+      'import { Helios } from "helios-web";',
+      'import "helios-style";',
+      'const mod = await import("helios-network");',
+    ].join('\n');
+    expect(rewriteImportSpecifiers(source, {
+      'helios-web': '/assets/helios-web.es.js',
+      'helios-style': '/assets/helios.css',
+      'helios-network': '/assets/helios-network.js',
+    })).toContain('from "/assets/helios-web.es.js"');
+    expect(rewriteImportSpecifiers(source, {
+      'helios-web': '/assets/helios-web.es.js',
+      'helios-style': '/assets/helios.css',
+      'helios-network': '/assets/helios-network.js',
+    })).toContain('import "/assets/helios.css"');
+    expect(rewriteImportSpecifiers(source, {
+      'helios-web': '/assets/helios-web.es.js',
+      'helios-style': '/assets/helios.css',
+      'helios-network': '/assets/helios-network.js',
+    })).toContain('import("/assets/helios-network.js")');
   });
 
   afterEach(() => {

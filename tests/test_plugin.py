@@ -8,6 +8,7 @@ from mkdocs_sidecode.plugin import SidecodePlugin
 
 def test_plugin_injects_runtime_when_examples_exist():
     plugin = SidecodePlugin()
+    plugin.config = {"import_map": {"helios-web": "../vendor/helios/helios-web.es.js"}}
     page = SimpleNamespace(
         file=SimpleNamespace(src_uri="docs/index.md", src_path="docs/index.md")
     )
@@ -23,8 +24,9 @@ console.log('interactive');
     html = plugin.on_page_content("<p>Body</p>", page, {}, None)
     assert "mkdocs-sidecode-page-data" in html
 
-    payload_text = html.split('class="mkdocs-sidecode-page-data">', 1)[1].split("</script>", 1)[0]
+    payload_text = html.split('class="mkdocs-sidecode-page-data">', 1)[1].split("</template>", 1)[0]
     payload = json.loads(payload_text)
+    assert payload["importMap"] == {"helios-web": "../vendor/helios/helios-web.es.js"}
     assert payload["examples"][0]["bodyName"] == "demo"
     assert payload["examples"][0]["height"] == "420px"
     assert payload["examples"][0]["autorun"] is False

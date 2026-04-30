@@ -76,6 +76,35 @@ def test_resolve_examples_rejects_self_reference_cycle():
         resolve_examples([block])
 
 
+def test_render_example_html_shows_referenced_fragment_signal():
+    markdown = """
+```javascript sidecode
+//@HEADER setup
+const value = 1;
+//@BODY source
+console.log(value);
+```
+
+```javascript sidecode
+//@REF HEADER setup
+//@REF BODY source
+//@BODY dependent
+console.log('dependent');
+```
+"""
+    _, examples = transform_markdown(markdown, "docs--refs-md")
+    html = render_example_html(examples[1])
+    assert "Uses code from" in html
+    assert "sidecode__ref-chip" in html
+    assert 'data-ref-example-id="docs--refs-md--example-1"' in html
+    assert 'data-ref-kind="header"' in html
+    assert 'data-ref-kind="body"' in html
+    assert "HEADER" in html
+    assert "setup" in html
+    assert "BODY" in html
+    assert "source" in html
+
+
 def test_transform_markdown_replaces_only_marked_javascript_fences():
     markdown = """
 ```javascript

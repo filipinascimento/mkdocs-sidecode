@@ -222,6 +222,7 @@ def render_example_html(example: ResolvedExample) -> str:
         if example.title
         else ""
     )
+    refs_html = _refs_html(example)
 
     payload = {
         "id": example.example_id,
@@ -266,6 +267,7 @@ def render_example_html(example: ResolvedExample) -> str:
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z"></path></svg>
         </button>
       </div>
+      {refs_html}
       <div class="sidecode__editor" data-role="body-editor"></div>
       <div class="sidecode__editor is-hidden" data-role="header-editor"></div>
     </section>
@@ -283,6 +285,34 @@ def render_example_html(example: ResolvedExample) -> str:
   </div>
 </div>
 """.strip()
+
+
+def _refs_html(example: ResolvedExample) -> str:
+    refs = [
+        ("HEADER", ref.name, ref.example_id)
+        for ref in example.resolved_header_refs
+    ] + [
+        ("BODY", ref.name, ref.example_id)
+        for ref in example.resolved_body_refs
+    ]
+    if not refs:
+        return ""
+    chips = "\n".join(
+        (
+            '<button class="sidecode__ref-chip" type="button" '
+            f'data-ref-kind="{html.escape(kind.lower())}" '
+            f'data-ref-name="{html.escape(name)}" '
+            f'data-ref-example-id="{html.escape(example_id)}">'
+            f'<span>{html.escape(kind)}</span> {html.escape(name)}</button>'
+        )
+        for kind, name, example_id in refs
+    )
+    return f"""
+      <div class="sidecode__refs" aria-label="Referenced fragments">
+        <span class="sidecode__refs-label">Uses code from</span>
+        {chips}
+      </div>
+""".rstrip()
 
 
 def _css_size(value: object) -> str | None:

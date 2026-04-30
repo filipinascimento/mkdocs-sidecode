@@ -4,6 +4,7 @@ import json
 import shutil
 from pathlib import Path
 
+from mkdocs.config import config_options as c
 from mkdocs.plugins import BasePlugin
 
 from .models import ResolvedExample
@@ -11,6 +12,10 @@ from .parser import _css_size, transform_markdown
 
 
 class SidecodePlugin(BasePlugin):
+    config_scheme = (
+        ("import_map", c.Type(dict, default={})),
+    )
+
     def __init__(self) -> None:
         self._page_examples: dict[str, list[ResolvedExample]] = {}
         self._assets_src = Path(__file__).parent / "assets"
@@ -36,6 +41,7 @@ class SidecodePlugin(BasePlugin):
             return html
 
         payload = {
+            "importMap": _normalized_import_map(getattr(self, "config", {}).get("import_map", {})),
             "examples": [
                 {
                     "id": example.example_id,
@@ -74,7 +80,7 @@ class SidecodePlugin(BasePlugin):
         }
 
         runtime = """
-<script type="application/json" class="mkdocs-sidecode-page-data">{payload}</script>
+<template class="mkdocs-sidecode-page-data">{payload}</template>
 """.strip().format(payload=json.dumps(payload))
         return f"{html}\n{runtime}"
 
@@ -87,3 +93,13 @@ class SidecodePlugin(BasePlugin):
         target.mkdir(parents=True, exist_ok=True)
         for asset in self._assets_src.iterdir():
             shutil.copy2(asset, target / asset.name)
+
+
+def _normalized_import_map(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(module_name): str(target)
+        for module_name, target in value.items()
+        if isinstance(module_name, str) and isinstance(target, str)
+    }

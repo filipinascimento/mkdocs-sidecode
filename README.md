@@ -71,6 +71,7 @@ Rules:
 - Missing references fail the docs build clearly.
 - Circular references are rejected clearly.
 - Body-fragment propagation is one-way in this milestone: editing a source body updates dependent examples that reference that body fragment.
+- Examples with `REF` directives show a small "Uses code from" strip above the editor with the imported HEADER/BODY fragment names.
 
 ## Execution Model
 
@@ -144,10 +145,17 @@ Add the plugin to your MkDocs config after installing it:
 ```yaml
 plugins:
   - search
-  - sidecode
+  - sidecode:
+      import_map:
+        helios-web: ../vendor/helios/helios-web.es.js
+        helios-network: ../vendor/helios/helios-network.js
 ```
 
 The plugin injects its own runtime script and styles when a page contains interactive example fences.
+`import_map` lets examples show package-style ES imports while the runtime rewrites
+those specifiers to local browser assets. Relative mapped paths resolve from
+`assets/mkdocs-sidecode/runtime.js`, so `../vendor/...` points at
+`assets/vendor/...` in the built site.
 
 ## Release
 

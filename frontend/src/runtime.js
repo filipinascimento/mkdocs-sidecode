@@ -1,9 +1,59 @@
 import { basicSetup } from 'codemirror';
+import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap } from '@codemirror/view';
 import { javascript } from '@codemirror/lang-javascript';
+import { tags } from '@lezer/highlight';
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+const sidecodeHighlightStyle = HighlightStyle.define([
+  { tag: tags.keyword, color: 'var(--sidecode-syntax-keyword)' },
+  { tag: [tags.name, tags.deleted, tags.character, tags.macroName], color: 'var(--sidecode-syntax-name)' },
+  { tag: [tags.propertyName, tags.variableName, tags.definition(tags.variableName)], color: 'var(--sidecode-syntax-variable)' },
+  { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], color: 'var(--sidecode-syntax-function)' },
+  { tag: [tags.labelName], color: 'var(--sidecode-syntax-label)' },
+  { tag: [tags.color, tags.constant(tags.name), tags.standard(tags.name)], color: 'var(--sidecode-syntax-constant)' },
+  { tag: [tags.definition(tags.name), tags.separator], color: 'var(--sidecode-syntax-text)' },
+  { tag: [tags.typeName, tags.className, tags.number, tags.changed, tags.annotation, tags.modifier, tags.self, tags.namespace], color: 'var(--sidecode-syntax-number)' },
+  { tag: [tags.operator, tags.operatorKeyword], color: 'var(--sidecode-syntax-operator)' },
+  { tag: [tags.string, tags.regexp, tags.special(tags.string)], color: 'var(--sidecode-syntax-string)' },
+  { tag: [tags.meta, tags.comment], color: 'var(--sidecode-syntax-comment)' },
+  { tag: tags.strong, fontWeight: '700' },
+  { tag: tags.emphasis, fontStyle: 'italic' },
+  { tag: tags.strikethrough, textDecoration: 'line-through' },
+  { tag: tags.link, color: 'var(--sidecode-syntax-link)', textDecoration: 'underline' },
+  { tag: tags.heading, fontWeight: '700', color: 'var(--sidecode-syntax-heading)' },
+  { tag: [tags.atom, tags.bool, tags.special(tags.variableName)], color: 'var(--sidecode-syntax-atom)' },
+  { tag: tags.invalid, color: 'var(--sidecode-syntax-invalid)' },
+]);
+
+const sidecodeEditorTheme = EditorView.theme({
+  '&': {
+    backgroundColor: 'var(--sidecode-editor-bg)',
+    color: 'var(--sidecode-editor-text)',
+  },
+  '.cm-content': {
+    caretColor: 'var(--sidecode-editor-text)',
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+  },
+  '.cm-gutters': {
+    backgroundColor: 'var(--sidecode-surface)',
+    color: 'var(--sidecode-muted)',
+    borderRightColor: 'var(--sidecode-border)',
+  },
+  '.cm-activeLine, .cm-activeLineGutter': {
+    backgroundColor: 'var(--sidecode-active-line)',
+  },
+});
+
+const sidecodeEditorExtensions = [
+  basicSetup,
+  javascript(),
+  syntaxHighlighting(sidecodeHighlightStyle),
+  sidecodeEditorTheme,
+  EditorView.lineWrapping,
+];
+
 let moduleLoader = async (moduleSource) => {
   const blob = new Blob([moduleSource], { type: 'text/javascript' });
   const url = URL.createObjectURL(blob);
@@ -21,7 +71,23 @@ function parsePageData(doc = document) {
   if (!node) {
     return null;
   }
-  return JSON.parse(node.textContent);
+  const text = node instanceof HTMLTemplateElement
+    ? (node.content.textContent || node.textContent)
+    : node.textContent;
+  return JSON.parse(text || '{}');
+}
+
+function resolveImportMap(importMap = {}, doc = document) {
+  const runtimeScript = Array.from(doc.scripts || [])
+    .find((script) => script.src && script.src.includes('/assets/mkdocs-sidecode/runtime.js'));
+  const baseUrl = runtimeScript?.src || doc.baseURI;
+  return Object.fromEntries(Object.entries(importMap).map(([specifier, target]) => {
+    try {
+      return [specifier, new URL(target, baseUrl).href];
+    } catch {
+      return [specifier, target];
+    }
+  }));
 }
 
 function debounce(fn, delay) {
@@ -33,24 +99,16 @@ function debounce(fn, delay) {
 }
 
 function canCompileForAutorun(example, registry, bodyCode) {
-  const headerSegments = [
+  const segments = [
     ...example.headerRefs.map((ref) => ref.code),
     example.headerCode,
+    ...example.bodyRefs.map((ref) => registry.getBody(ref.name)),
+    bodyCode,
   ].filter(Boolean);
-  const executableHeader = [];
-  for (const segment of headerSegments) {
-    const split = splitImports(segment);
-    if (split.body) {
-      executableHeader.push(split.body);
-    }
-  }
-  const referencedBody = example.bodyRefs
-    .map((ref) => registry.getBody(ref.name))
-    .filter(Boolean)
-    .join('\n\n');
+  const executable = splitExecutableSegments(segments);
   try {
     // This intentionally excludes ESM imports, which cannot be parsed by Function.
-    new AsyncFunction([executableHeader.join('\n\n'), referencedBody, bodyCode].filter(Boolean).join('\n\n'));
+    new AsyncFunction(executable.bodyChunks.join('\n\n'));
     return true;
   } catch {
     return false;
@@ -164,6 +222,38 @@ function splitImports(code) {
   };
 }
 
+function rewriteImportSpecifiers(code, importMap = {}) {
+  if (!code || !Object.keys(importMap).length) {
+    return code;
+  }
+  const rewrite = (specifier) => importMap[specifier] ?? specifier;
+  return code
+    .replace(/(\bfrom\s*)(["'])([^"']+)(\2)/g, (match, prefix, quote, specifier, suffix) => {
+      return `${prefix}${quote}${rewrite(specifier)}${suffix}`;
+    })
+    .replace(/(\bimport\s*)(["'])([^"']+)(\2)/g, (match, prefix, quote, specifier, suffix) => {
+      return `${prefix}${quote}${rewrite(specifier)}${suffix}`;
+    })
+    .replace(/(\bimport\s*\(\s*)(["'])([^"']+)(\2\s*\))/g, (match, prefix, quote, specifier, suffix) => {
+      return `${prefix}${quote}${rewrite(specifier)}${suffix}`;
+    });
+}
+
+function splitExecutableSegments(segments, importMap = {}) {
+  const importChunks = [];
+  const bodyChunks = [];
+  for (const segment of segments) {
+    const split = splitImports(segment);
+    if (split.imports) {
+      importChunks.push(rewriteImportSpecifiers(split.imports, importMap));
+    }
+    if (split.body) {
+      bodyChunks.push(rewriteImportSpecifiers(split.body, importMap));
+    }
+  }
+  return { importChunks, bodyChunks };
+}
+
 async function executeExample(example, registry, elements, state) {
   cleanupExample(state, elements);
 
@@ -187,33 +277,22 @@ async function executeExample(example, registry, elements, state) {
     headerSegments.push(example.headerCode);
   }
 
-  const importChunks = [];
-  const executableHeaderChunks = [];
-  for (const segment of headerSegments) {
-    const split = splitImports(segment);
-    if (split.imports) {
-      importChunks.push(split.imports);
-    }
-    if (split.body) {
-      executableHeaderChunks.push(split.body);
-    }
-  }
-
-  const referencedBody = example.bodyRefs
+  const referencedBodySegments = example.bodyRefs
     .map((ref) => registry.getBody(ref.name))
-    .filter(Boolean)
-    .join('\n\n');
+    .filter(Boolean);
+  const executable = splitExecutableSegments(
+    [...headerSegments, ...referencedBodySegments, state.currentBody],
+    state.importMap,
+  );
 
   const runId = `${example.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
   const moduleSource = [
-    importChunks.join('\n'),
+    executable.importChunks.join('\n'),
     `const __ctx = globalThis.__MKDOCS_SIDECODE_CONTEXTS__?.get(${JSON.stringify(runId)});`,
     'if (!__ctx) throw new Error("Sidecode execution context is unavailable.");',
     'const { container, consoleTarget, context, registerCleanup, console } = __ctx;',
     'await (async () => {',
-    executableHeaderChunks.join('\n\n'),
-    referencedBody,
-    state.currentBody,
+    executable.bodyChunks.join('\n\n'),
     '})();',
   ]
     .filter(Boolean)
@@ -287,6 +366,7 @@ function mountExample(example, registry) {
   const renderTab = root.querySelector('[data-role="render-tab"]');
   const consoleTab = root.querySelector('[data-role="console-tab"]');
   const runButton = root.querySelector('[data-role="run"]');
+  const refButtons = root.querySelectorAll('[data-ref-example-id]');
   const visibleRenderTarget = renderTarget;
   if (!renderTarget) {
     renderTarget = document.createElement('div');
@@ -300,6 +380,7 @@ function mountExample(example, registry) {
     cleanupFns: [],
     abortController: null,
     moduleUrl: null,
+    importMap: registry.importMap,
   };
 
   const runNow = async () => {
@@ -326,9 +407,7 @@ function mountExample(example, registry) {
   const editorState = EditorState.create({
     doc: example.bodyCode,
     extensions: [
-      basicSetup,
-      javascript(),
-      EditorView.lineWrapping,
+      ...sidecodeEditorExtensions,
       runKeymap,
       EditorView.updateListener.of((update) => {
         if (!update.docChanged) {
@@ -358,9 +437,7 @@ function mountExample(example, registry) {
     state: EditorState.create({
       doc: headerSource || '// No header code for this example.',
       extensions: [
-        basicSetup,
-        javascript(),
-        EditorView.lineWrapping,
+        ...sidecodeEditorExtensions,
         EditorState.readOnly.of(true),
       ],
     }),
@@ -381,6 +458,12 @@ function mountExample(example, registry) {
   runButton?.addEventListener('click', () => {
     runNow();
   });
+
+  for (const button of refButtons) {
+    button.addEventListener('click', () => {
+      revealReferencedSource(button);
+    });
+  }
 
   root.__sidecodeController = {
     editor,
@@ -406,6 +489,23 @@ function mountExample(example, registry) {
     headerEditor.destroy();
     cleanupExample(state, elements);
   }, { once: true });
+}
+
+function revealReferencedSource(button) {
+  const sourceId = button?.dataset?.refExampleId;
+  const kind = button?.dataset?.refKind;
+  if (!sourceId) return;
+  const sourceRoot = document.querySelector(`[data-sidecode-example="${sourceId}"]`);
+  if (!sourceRoot) return;
+  sourceRoot.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const targetTab = sourceRoot.querySelector(
+    kind === 'header' ? '[data-role="header-tab"]' : '[data-role="body-tab"]',
+  );
+  if (targetTab && !targetTab.disabled) {
+    targetTab.click();
+  }
+  sourceRoot.classList.add('sidecode--flash-source');
+  window.setTimeout(() => sourceRoot.classList.remove('sidecode--flash-source'), 1200);
 }
 
 function setupTabs({
@@ -470,10 +570,13 @@ export function bootstrapSidecodeExamples(doc = document) {
     return;
   }
   const registry = new FragmentRegistry(pageData.examples);
+  registry.importMap = resolveImportMap(pageData.importMap || {}, doc);
   for (const example of pageData.examples) {
     mountExample(example, registry);
   }
 }
+
+export { rewriteImportSpecifiers };
 
 export function setModuleLoader(loader) {
   moduleLoader = loader;
